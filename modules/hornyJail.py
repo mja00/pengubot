@@ -103,6 +103,8 @@ class hornyJail(commands.Cog):
                 hornyjailDB.delete_one({"discordID": discordID})
                 horny_jail_role = discord.utils.get(guild.roles, name="In Horny Jail")
                 await user.remove_roles(horny_jail_role)
+                channel = discord.utils.get(guild.channels, name="general")
+                await channel.send(f"Today's your day <@{discordID}>. You're free from Horny Jail. Try not to get sent back.")
             #else:
                 #print(f"{Fore.BLUE}{dt.now().strftime('%H:%M:%S')} | ❌ | {document['username']} isn't ready for release yet.")
 
