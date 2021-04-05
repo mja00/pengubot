@@ -1,7 +1,7 @@
 from discord.ext import commands, tasks
 from colorama import Fore
 from datetime import datetime as dt
-import discord, os, asyncio, configparser, datetime, requests
+import discord, os, asyncio, configparser, datetime, requests, aiohttp
 
 
 class quotes(commands.Cog):
@@ -10,13 +10,17 @@ class quotes(commands.Cog):
 
     @commands.command()
     async def quote(self, ctx, *args):
+        sess = aiohttp.ClientSession()
         output = ""
         for word in args:
             output += word.replace("'", '')
             output += " "
         output = output.replace(" ", "+")
-        quote = requests.get(f"https://twitch.center/customapi/quote?token=b6ab24d1&data={output}")
+        # quote = requests.get(f"https://twitch.center/customapi/quote?token=b6ab24d1&data={output}")
+        req = await sess.get(f"https://twitch.center/customapi/quote?token=b6ab24d1&data={output}")
+        quote = await req.text()
         await ctx.send(quote)
+        await sess.close()
 
 
 def setup(bot):
