@@ -91,9 +91,9 @@ class hornyJail(commands.Cog):
 
     # Loops for releasing people from horny jail
 
-    @tasks.loop(seconds=60)
+    @tasks.loop(seconds=10)
     async def horny_jail_loop(self):
-        print(f"{Fore.CYAN}{dt.now().strftime('%H:%M:%S')} | ❕ | Checking if anyone is set for release")
+        # print(f"{Fore.CYAN}{dt.now().strftime('%H:%M:%S')} | ❕ | Checking if anyone is set for release")
         for document in hornyjailDB.find():
             if document["expires"] < dt.now():
                 discordID = document["discordID"]
@@ -103,9 +103,8 @@ class hornyJail(commands.Cog):
                 hornyjailDB.delete_one({"discordID": discordID})
                 horny_jail_role = discord.utils.get(guild.roles, name="In Horny Jail")
                 await user.remove_roles(horny_jail_role)
-            else:
-                print(
-                    f"{Fore.BLUE}{dt.now().strftime('%H:%M:%S')} | ❌ | {document['username']} isn't ready for release yet.")
+            #else:
+                #print(f"{Fore.BLUE}{dt.now().strftime('%H:%M:%S')} | ❌ | {document['username']} isn't ready for release yet.")
 
     @horny_jail_loop.before_loop
     async def before_horny_jail_loop(self):
