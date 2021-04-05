@@ -86,6 +86,7 @@ async def on_ready():
 @bot.command()
 @commands.is_owner()
 async def shutdown(ctx):
+    await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Activity(type=discord.ActivityType.watching, name="my code turn off"))
     await ctx.channel.send("Shutting down :(")
     await bot.close()
 
