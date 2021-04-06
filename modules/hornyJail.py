@@ -97,7 +97,7 @@ class hornyJail(commands.Cog):
         for document in hornyjailDB.find():
             if document["expires"] < dt.now():
                 discordID = document["discordID"]
-                guild = self.bot.get_guild(529860954549125143)
+                guild = self.bot.get_guild(689541509523046480)
                 user = guild.get_member(discordID)
                 print(f"{Fore.GREEN}{dt.now().strftime('%H:%M:%S')} | ✅ | {document['username']} has been released.")
                 hornyjailDB.delete_one({"discordID": discordID})
