@@ -34,6 +34,34 @@ def display_time(seconds, granularity=2):
             result.append("{} {}".format(int(value), name))
     return ', '.join(result[:granularity])
 
+def is_in_jail(discord_id):
+    document = hornyjailDB.find_one({"discordID": discord_id})
+    if document is None:
+        return False
+    else:
+        return True
+
+def get_inmate(discord_id):
+    return hornyjailDB.find_one({"discordID": discord_id})
+
+def time_convert(time):
+    time_convert = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+    return int(time[:-1]) * time_convert[time[-1]]
+
+def upsert_db(user, time_released):
+    prisoner = {"discordID": user.id,
+                "expires": time_released,
+                "username": user.name}
+    key = {"discordID": user.id}
+    hornyjailDB.update(key, prisoner, upsert=True)
+
+def sentence_user(user, time):
+    temp_role_time = time_convert(time)
+    time_released = dt.now() + datetime.timedelta(seconds=temp_role_time)
+    time_released_formatted = time_released.strftime("%m/%d/%Y at %H:%M:%S")
+    upsert_db(user, time_released)
+    return time_released_formatted
+
 
 class hornyJail(commands.Cog):
     def __init__(self, bot):
@@ -50,15 +78,7 @@ class hornyJail(commands.Cog):
             await ctx.send("You must include a user and the time. IE: !hornjail @mja00 100d")
         else:
             horny_jail_role = discord.utils.get(ctx.guild.roles, name="In Horny Jail")
-            time_convert = {"s": 1, "m": 60, "h": 3600, "d": 86400}
-            temp_role_time = int(time[:-1]) * time_convert[time[-1]]
-            time_released = dt.now() + datetime.timedelta(seconds=temp_role_time)
-            time_released_formatted = time_released.strftime("%m/%d/%Y at %H:%M:%S")
-            prisoner = {"discordID": user.id,
-                        "expires": time_released,
-                        "username": user.name}
-            key = {"discordID": user.id}
-            hornyjailDB.update(key, prisoner, upsert=True)
+            time_released_formatted = sentence_user(user, time)
             await ctx.send(
                 f"Hands up! <@{user.id}>, you're coming with me. I've got a nice cell in Horny Jail for you. They will be released from Horny Jail on {time_released_formatted} EST")
             await user.add_roles(horny_jail_role)
@@ -77,8 +97,13 @@ class hornyJail(commands.Cog):
             await ctx.send(f"Looks like you're lucky <@{user.id}>. The Warden has decided to pardon you.")
 
     @commands.command()
-    async def sentence(self, ctx):
-        author_id = ctx.message.author.id
+    async def sentence(self, ctx, user: discord.Member = None):
+        if user is None:
+            author_id = ctx.message.author.id
+            other = False
+        else:
+            author_id = user.id
+            other = True
         document = hornyjailDB.find_one({"discordID": author_id})
         if document is None:
             await ctx.send("You are currently not in horny jail")
@@ -87,7 +112,25 @@ class hornyJail(commands.Cog):
             delta = release_time - dt.now()
             total_seconds = delta.total_seconds()
             formatted_time = display_time(total_seconds, 4)
-            await ctx.send(f"<@{author_id}> >> You are in jail for another {formatted_time}.")
+            await ctx.send(f"<@{ctx.message.author.id}> >> {'They' if other else 'You'} are in jail for another {formatted_time}.")
+
+    @commands.command()
+    @commands.has_any_role("Potato", "vlerry rules everyone")
+    async def extend(self, ctx, user: discord.Member = None, time=None):
+        if user is None or time is None:
+            await ctx.send("You must include the user and a time. IE: !extend @Xolost 69d")
+        elif is_in_jail(user.id) is True:
+            inmate_doc = get_inmate(user.id)
+            current_sentence = inmate_doc["expires"]
+            time_released = current_sentence + datetime.timedelta(seconds=time_convert(time))
+            time_released_formatted = time_released.strftime("%m/%d/%Y at %H:%M:%S")
+            upsert_db(user, time_released)
+            await ctx.send(f"<@{user.id}>'s sentence has been extended. They will now be released at {time_released_formatted} EST.")
+            print(f"{Fore.RED}{dt.now().strftime('%H:%M:%S')} | ❌ | {user.name} has had their sentence in Horny Jail extended till {time_released_formatted}")
+        else:
+            await ctx.send("This person currently isn't in jail.")
+
+
 
     # Loops for releasing people from horny jail
 
