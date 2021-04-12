@@ -12,6 +12,7 @@ config.read('config.ini')
 client = pymongo.MongoClient(config["mongodb"]["url"])
 db = client.pengubot
 hornyjailDB = db.hornyjail
+sentences_db = db.sentences
 
 intervals = (
     ('weeks', 604800),  # 60 * 60 * 24 * 7
@@ -62,6 +63,9 @@ def sentence_user(user, time):
     upsert_db(user, time_released)
     return time_released_formatted
 
+def current_time_and_date():
+    return dt.now().strftime('%m/%d/%Y %H:%M:%S')
+
 
 class hornyJail(commands.Cog):
     def __init__(self, bot):
@@ -83,7 +87,7 @@ class hornyJail(commands.Cog):
                 f"Hands up! <@{user.id}>, you're coming with me. I've got a nice cell in Horny Jail for you. They will be released from Horny Jail on {time_released_formatted} EST")
             await user.add_roles(horny_jail_role)
             print(
-                f"{Fore.RED}{dt.now().strftime('%H:%M:%S')} | ❌ | {user.name} has been placed in Horny Jail till {time_released_formatted}")
+                f"{Fore.RED}{current_time_and_date()} | ❌ | {user.name} has been placed in Horny Jail till {time_released_formatted}")
 
     @commands.command()
     @commands.has_any_role("Potato", "vlerry rules everyone")
@@ -115,6 +119,20 @@ class hornyJail(commands.Cog):
             await ctx.send(f"<@{ctx.message.author.id}> >> {'They' if other else 'You'} are in jail for another {formatted_time}.")
 
     @commands.command()
+    async def sentences(self, ctx):
+        # Get all the documents
+        all_sentences = hornyjailDB.find()
+        # Start embed creation
+        embed = discord.Embed(title="Current Sentences", color=0x0fb4eb)
+        for sentence in all_sentences:
+            release_time = sentence["expires"]
+            delta = release_time - dt.now()
+            total_seconds = delta.total_seconds()
+            formatted_time = display_time(total_seconds, 4)
+            embed.add_field(name=sentence["username"], value=formatted_time, inline=False)
+        await ctx.send(embed=embed)
+
+    @commands.command()
     @commands.has_any_role("Potato", "vlerry rules everyone")
     async def extend(self, ctx, user: discord.Member = None, time=None):
         if user is None or time is None:
@@ -126,7 +144,7 @@ class hornyJail(commands.Cog):
             time_released_formatted = time_released.strftime("%m/%d/%Y at %H:%M:%S")
             upsert_db(user, time_released)
             await ctx.send(f"<@{user.id}>'s sentence has been extended. They will now be released at {time_released_formatted} EST.")
-            print(f"{Fore.RED}{dt.now().strftime('%H:%M:%S')} | ❌ | {user.name} has had their sentence in Horny Jail extended till {time_released_formatted}")
+            print(f"{Fore.RED}{current_time_and_date()}| ❌ | {user.name} has had their sentence in Horny Jail extended by {time} till {time_released_formatted}")
         else:
             await ctx.send("This person currently isn't in jail.")
 
@@ -140,16 +158,28 @@ class hornyJail(commands.Cog):
         for document in hornyjailDB.find():
             if document["expires"] < dt.now():
                 discordID = document["discordID"]
+                # Generate object for the previous sentences collection
+
+                sentence_date = document["_id"].generation_time
+                data = {
+                    "discord_id": discordID,
+                    "sentence_date": sentence_date,
+                    "released_date": dt.utcnow()
+                }
+                sentences_db.insert_one(data)
+
+                # Preform the unjailing
                 guild = self.bot.get_guild(689541509523046480)
                 user = guild.get_member(discordID)
-                print(f"{Fore.GREEN}{dt.now().strftime('%H:%M:%S')} | ✅ | {document['username']} has been released.")
+                print(f"{Fore.GREEN}{current_time_and_date()} | ✅ | {document['username']} has been released.")
                 hornyjailDB.delete_one({"discordID": discordID})
                 horny_jail_role = discord.utils.get(guild.roles, name="In Horny Jail")
-                await user.remove_roles(horny_jail_role)
-                channel = discord.utils.get(guild.channels, name="general")
-                await channel.send(f"Today's your day <@{discordID}>. You're free from Horny Jail. Try not to get sent back.")
-            #else:
-                #print(f"{Fore.BLUE}{dt.now().strftime('%H:%M:%S')} | ❌ | {document['username']} isn't ready for release yet.")
+                try:
+                    await user.remove_roles(horny_jail_role)
+                    channel = discord.utils.get(guild.channels, name="general")
+                    await channel.send(f"Today's your day <@{discordID}>. You're free from Horny Jail. Try not to get sent back.")
+                except AttributeError:
+                    print(f"{Fore.RED}{current_time_and_date()} | ❌ | Failed to remove the role from {discordID}. Most likely isn't in the guild.")
 
     @horny_jail_loop.before_loop
     async def before_horny_jail_loop(self):
