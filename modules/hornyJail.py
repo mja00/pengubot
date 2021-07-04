@@ -1,6 +1,7 @@
 from discord.ext import commands, tasks
 from colorama import Fore
 from datetime import datetime as dt
+from datetime import timezone
 from pymongo import MongoClient
 import discord, os, asyncio, pymongo, configparser, datetime
 
@@ -50,7 +51,7 @@ def get_inmate(discord_id):
 
 
 def time_convert(time):
-    time_convert = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800, "M": 2592000, "y": 31536000}
+    time_convert = {"s": 1, "m": 60, "h": 3600, "d": 86400}
     return int(time[:-1]) * time_convert[time[-1]]
 
 
@@ -67,7 +68,7 @@ def upsert_db(user: discord.Member, time_released, author):
 
 def sentence_user(user, time, author):
     temp_role_time = time_convert(time)
-    time_released = dt.now() + datetime.timedelta(seconds=temp_role_time)
+    time_released = dt.utcnow() + datetime.timedelta(seconds=temp_role_time)
     time_released_formatted = time_released.strftime("%m/%d/%Y at %H:%M:%S")
     upsert_db(user, time_released, author)
     return time_released_formatted
@@ -94,7 +95,7 @@ class hornyJail(commands.Cog):
             horny_jail_role = discord.utils.get(ctx.guild.roles, name="In Horny Jail")
             time_released_formatted = sentence_user(user, time, ctx.message.author)
             await ctx.send(
-                f"Hands up! <@{user.id}>, you're coming with me. I've got a nice cell in Horny Jail for you. They will be released from Horny Jail on {time_released_formatted} EST")
+                f"Hands up! <@{user.id}>, you're coming with me. I've got a nice cell in Horny Jail for you. They will be released from Horny Jail on {time_released_formatted} UTC")
             await user.add_roles(horny_jail_role)
             print(
                 f"{Fore.RED}{current_time_and_date()} | ❌ | {user.name} has been placed in Horny Jail till {time_released_formatted}")
@@ -123,7 +124,7 @@ class hornyJail(commands.Cog):
             await ctx.send("You are currently not in horny jail")
         else:
             release_time = document["expires"]
-            delta = release_time - dt.now()
+            delta = release_time - dt.utcnow()
             total_seconds = delta.total_seconds()
             formatted_time = display_time(total_seconds, 4)
             await ctx.send(
@@ -137,7 +138,7 @@ class hornyJail(commands.Cog):
         embed = discord.Embed(title="Current Sentences", color=0x0fb4eb)
         for sentence in all_sentences:
             release_time = sentence["expires"]
-            delta = release_time - dt.now()
+            delta = release_time - dt.utcnow()
             total_seconds = delta.total_seconds()
             formatted_time = display_time(total_seconds, 4)
             embed.add_field(name=sentence["username"], value=formatted_time, inline=False)
@@ -157,7 +158,7 @@ class hornyJail(commands.Cog):
             await ctx.send(
                 f"<@{user.id}>'s sentence has been extended. They will now be released at {time_released_formatted} EST.")
             print(
-                f"{Fore.RED}{current_time_and_date()}| ❌ | {user.name} has had their sentence in Horny Jail extended by {time} till {time_released_formatted}")
+                f"{Fore.RED}{current_time_and_date()} | ❌ | {user.name} has had their sentence in Horny Jail extended by {time} till {time_released_formatted}")
         else:
             await ctx.send("This person currently isn't in jail.")
 
@@ -165,20 +166,23 @@ class hornyJail(commands.Cog):
 
     @tasks.loop(seconds=10)
     async def horny_jail_loop(self):
-        # print(f"{Fore.CYAN}{dt.now().strftime('%H:%M:%S')} | ❕ | Checking if anyone is set for release")
         for document in hornyjailDB.find():
-            if document["expires"] < dt.now():
+            if document["expires"] < dt.utcnow():
                 discordID = document["discordID"]
                 # Generate object for the previous sentences collection
 
                 sentence_date = document["_id"].generation_time
+                delta = dt.now(timezone.utc) - sentence_date
+                total_seconds = delta.total_seconds()
+                formatted_time = display_time(total_seconds, 4)
                 data = {
                     "discord_id": discordID,
                     "sentence_date": sentence_date,
                     "released_date": dt.utcnow(),
                     "username": document["username"],
                     "sentenced_by_name": document["sentenced_by_name"],
-                    "sentenced_by_id": document["sentenced_by_id"]
+                    "sentenced_by_id": document["sentenced_by_id"],
+                    "time_in": formatted_time
                 }
                 sentences_db.insert_one(data)
 

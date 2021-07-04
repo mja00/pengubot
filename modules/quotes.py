@@ -21,6 +21,10 @@ class quotes(commands.Cog):
         quote = await req.text()
         await ctx.send(quote)
         await sess.close()
+    
+    @commands.command()
+    async def byejaye(self, ctx):
+        await ctx.send("bye jaye 👋")
 
 
 def setup(bot):
