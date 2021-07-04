@@ -42,7 +42,7 @@ else:
 cogsDir = "modules"
 
 # Hard coded list of cogs to load, pretty bad but I don't use a proper config file
-initHandlers = ['hornyJail']
+initHandlers = ['hornyJail', 'quotes', 'markov']
 
 # Load all extensions automatically before starting bot
 print(f"{Fore.YELLOW}🔄 | Loading cogs")
